@@ -34,14 +34,24 @@ def main() -> None:
         "--no-voice", action="store_true", help="只用键盘输入，不开麦克风"
     )
     parser.add_argument("--model", default="base", choices=["tiny", "base", "small"])
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--semantic",
         action="store_true",
         help="用语义嵌入匹配替代关键词匹配（识别自由表述）",
     )
+    mode.add_argument(
+        "--llm",
+        action="store_true",
+        help="用大模型解析指令（需 LITE3_LLM_API_KEY）",
+    )
     args = parser.parse_args()
 
-    if args.semantic:
+    if args.llm:
+        from lite3_sim.llm import LLMCommandParser
+
+        parse = LLMCommandParser().parse
+    elif args.semantic:
         from lite3_sim.semantic import SemanticCommandParser
 
         parse = SemanticCommandParser().parse

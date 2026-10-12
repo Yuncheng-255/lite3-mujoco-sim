@@ -71,17 +71,34 @@ uv sync --extra voice          # 安装 faster-whisper + sounddevice
 uv run python scripts/voice_control.py            # 语音 + 键盘双通道
 uv run python scripts/voice_control.py --semantic # 语义模式：识别自由表述
 uv run python scripts/voice_control.py --no-voice # 仅键盘输入调试
+
+# 大模型模式（需 API key，默认 zju-gateway DeepSeek V4 Flash）
+uv sync --extra voice --extra llm
+export LITE3_LLM_API_KEY=<你的网关 key>
+uv run python scripts/voice_control.py --llm
 ```
 
 支持指令：**前进 / 后退 / 左转 / 右转 / 停下 / 起立 / 趴下**。
-本地 faster-whisper 中文识别（默认 base 模型）；指令解析有两种模式：
+本地 faster-whisper 中文识别（默认 base 模型）；指令解析有三种互斥模式：
 
 - **关键词模式**（默认）：亚毫秒匹配固定指令词
 - **语义模式**（`--semantic`）：bge-small-zh 句向量（ONNX 量化，~24MB，首次自动下载）与指令例句算余弦相似度，阈值 0.6；"宝贝往前走两步"这类自由表述也能识别，无关文本会被拒绝
+- **大模型模式**（`--llm`）：OpenAI 兼容接口输出 JSON（动作 + 速度倍率），能理解"快一点往后退"这类带参数的表述；用 `LITE3_LLM_BASE_URL` / `LITE3_LLM_MODEL` 可切换其他端点
 
 识别文本先做繁转简（OpenCC）。起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
 
-### 运行测试
+### 官方二次开发路径（调研结论）
+
+| 层级 | 官方资产 | 能力 |
+|---|---|---|
+| 关节级 | [Lite3_MotionSDK](https://github.com/DeepRoboticsLab/Lite3_MotionSDK) | UDP 直连运动主机，12 关节 pos/vel/kp/kd/前馈五参数控制，读 IMU/关节/足底力 |
+| 策略部署 | [Lite3_rl_deploy](https://github.com/DeepRoboticsLab/Lite3_rl_deploy) | RL 策略 sim-to-sim / sim-to-real（本项目 policy.onnx 来源） |
+| 策略训练 | [rl_training](https://github.com/DeepRoboticsLab/rl_training) | 训练新运动技能（上楼梯、新步态等）的官方流程 |
+| 高层指令 | 《绝影Lite3运动主机通讯接口》UDP 协议 | 向机载运动程序下发步态/动作模式（仅真机可用） |
+
+仿真中要扩展技能（跳、爬楼梯等），可行路径是 rl_training 训新策略后部署；高层指令接口只存在于真机的机载运动程序。
+
+## 运行测试
 
 ```bash
 uv run pytest                  # 基础测试

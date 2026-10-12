@@ -21,6 +21,9 @@ voice = [
     "sounddevice>=0.5",
     "tokenizers>=0.19",
 ]
+llm = [
+    "openai>=1",
+]
 
 [dependency-groups]
 dev = [
