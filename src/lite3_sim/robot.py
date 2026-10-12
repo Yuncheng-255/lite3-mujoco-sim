@@ -60,6 +60,12 @@ class Lite3Sim:
             [self.model.joint(name).dofadr[0] for name in JOINT_NAMES]
         )
         self._ctrl_range = self.model.actuator_ctrlrange.copy()
+        gyro_idx = next(
+            i
+            for i, sensor_type in enumerate(self.model.sensor_type)
+            if sensor_type == mujoco.mjtSensor.mjSENS_GYRO
+        )
+        self._gyro_adr = int(self.model.sensor_adr[gyro_idx])
 
     @property
     def timestep(self) -> float:
@@ -69,6 +75,22 @@ class Lite3Sim:
     def reset(self) -> None:
         """重置到 XML 初始状态（空中 1 m 处释放）。"""
         mujoco.mj_resetData(self.model, self.data)
+
+    def reset_standing(
+        self,
+        pose: NDArray[_FLOAT] = STAND_POSE,
+        height: float = 0.32,
+    ) -> None:
+        """以站姿直接初始化：躯干置于给定高度、关节置位、速度清零。
+
+        从空中跌落初始化容易形成躯干着地的卡死平衡，站姿初始化是
+        官方部署代码采用的方式。
+        """
+        self.reset()
+        self.data.qpos[2] = height
+        self.data.qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
+        self.data.qpos[7:] = pose
+        mujoco.mj_forward(self.model, self.data)
 
     def joint_positions(self) -> NDArray[_FLOAT]:
         """12 个关节当前角度（rad）。"""
@@ -86,6 +108,16 @@ class Lite3Sim:
         """躯干姿态四元数 [w, x, y, z]。"""
         return self.data.qpos[3:7].copy()
 
+    def gyro(self) -> NDArray[_FLOAT]:
+        """IMU 陀螺仪读数：体坐标系角速度（rad/s）。"""
+        return self.data.sensordata[self._gyro_adr : self._gyro_adr + 3].copy()
+
+    def projected_gravity(self) -> NDArray[_FLOAT]:
+        """重力方向在躯干坐标系下的投影（RL 策略标准观测）。"""
+        rotation = np.zeros(9, dtype=_FLOAT)
+        mujoco.mju_quat2Mat(rotation, self.data.qpos[3:7])
+        return rotation.reshape(3, 3).T @ np.array([0.0, 0.0, -1.0])
+
     def pd_torques(
         self,
         target: NDArray[_FLOAT],
@@ -96,13 +128,18 @@ class Lite3Sim:
         torque = g.kp * (target - self.joint_positions()) - g.kd * self.joint_velocities()
         return np.clip(torque, self._ctrl_range[:, 0], self._ctrl_range[:, 1])
 
-    def step_pd(self, target: NDArray[_FLOAT], n_steps: int = 1) -> None:
+    def step_pd(
+        self,
+        target: NDArray[_FLOAT],
+        n_steps: int = 1,
+        gains: PDGains | None = None,
+    ) -> None:
         """以 PD 控制步进 n_steps 个物理步。"""
         target = np.asarray(target, dtype=_FLOAT)
         if target.shape != (12,):
             raise ValueError(f"目标关节角形状应为 (12,)，实际 {target.shape}")
         for _ in range(n_steps):
-            self.data.ctrl[:] = self.pd_torques(target)
+            self.data.ctrl[:] = self.pd_torques(target, gains)
             mujoco.mj_step(self.model, self.data)
 
     def step_torques(self, torques: NDArray[_FLOAT], n_steps: int = 1) -> None:

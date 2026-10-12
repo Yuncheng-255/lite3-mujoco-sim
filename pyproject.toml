@@ -8,6 +8,7 @@ license = { text = "MIT" }
 dependencies = [
     "mujoco>=3.2",
     "numpy>=1.26",
+    "onnxruntime>=1.18",
     "Pillow>=10",
 ]
 
