@@ -26,6 +26,7 @@ from lite3_sim.voice import (
 
 _HINT = "支持指令：前进 / 后退 / 左转 / 右转 / 停下 / 起立 / 趴下"
 _HOLD_POSE = {Action.STAND: POLICY_DEFAULT_POSE, Action.LIE: LIE_POSE}
+_STATE_LABEL = {Action.STAND: "站立中", Action.LIE: "趴下中", Action.MOVE: "运动中"}
 
 
 def main() -> None:
@@ -66,7 +67,12 @@ def main() -> None:
     state = {"command": MotionCommand(Action.STAND), "transition": None}
 
     def on_text(text: str) -> None:
-        command = parse(text)
+        if args.llm:
+            with lock:
+                current = _STATE_LABEL[state["command"].action]
+            command = parse(text, state=current)
+        else:
+            command = parse(text)
         if command is None:
             print(f"[未识别] {text}（{_HINT}）")
             return
