@@ -19,8 +19,8 @@ from lite3_sim.voice import (
     Action,
     MotionCommand,
     PoseTransition,
+    SenseVoiceListener,
     TextListener,
-    WhisperListener,
     parse_command,
 )
 
@@ -34,7 +34,6 @@ def main() -> None:
     parser.add_argument(
         "--no-voice", action="store_true", help="只用键盘输入，不开麦克风"
     )
-    parser.add_argument("--model", default="base", choices=["tiny", "base", "small"])
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--semantic",
@@ -84,7 +83,7 @@ def main() -> None:
 
     listeners = [TextListener(on_text)]
     if not args.no_voice:
-        listeners.append(WhisperListener(on_text, model_size=args.model))
+        listeners.append(SenseVoiceListener(on_text))
     for listener in listeners:
         listener.start()
     print(f"语音遥控已启动，{_HINT}；键盘可直接输入指令。")

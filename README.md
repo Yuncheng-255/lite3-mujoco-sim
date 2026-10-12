@@ -67,7 +67,7 @@ rgb = sim.render(640, 480)            # 离屏渲染 [H, W, 3] uint8
 ### 语音遥控（可选）
 
 ```bash
-uv sync --extra voice          # 安装 faster-whisper + sounddevice
+uv sync --extra voice          # 安装 sherpa-onnx + sounddevice
 uv run python scripts/voice_control.py            # 语音 + 键盘双通道
 uv run python scripts/voice_control.py --semantic # 语义模式：识别自由表述
 uv run python scripts/voice_control.py --no-voice # 仅键盘输入调试
@@ -79,13 +79,13 @@ uv run python scripts/voice_control.py --llm
 ```
 
 支持指令：**前进 / 后退 / 左转 / 右转 / 停下 / 起立 / 趴下**。
-本地 faster-whisper 中文识别（默认 base 模型）；指令解析有三种互斥模式：
+ASR 用阿里 SenseVoiceSmall（sherpa-onnx 推理，int8 模型约 228MB，首次自动下载到 `~/.cache/lite3-sim/`）：原生简体中文输出，CPU 上转写约 0.1 秒/条，中文指令场景准确率显著优于 Whisper。指令解析有三种互斥模式：
 
 - **关键词模式**（默认）：亚毫秒匹配固定指令词
-- **语义模式**（`--semantic`）：bge-small-zh 句向量（ONNX 量化，~24MB，首次自动下载）与指令例句算余弦相似度，阈值 0.6；"宝贝往前走两步"这类自由表述也能识别，无关文本会被拒绝
+- **语义模式**（`--semantic`，需 `--extra semantic`）：bge-small-zh 句向量（ONNX 量化，~24MB，首次自动下载）与指令例句算余弦相似度，阈值 0.6；"宝贝往前走两步"这类自由表述也能识别，无关文本会被拒绝
 - **大模型模式**（`--llm`）：OpenAI 兼容接口输出 JSON（动作 + 速度倍率），能理解"快一点往后退"这类带参数的表述；用 `LITE3_LLM_BASE_URL` / `LITE3_LLM_MODEL` 可切换其他端点
 
-识别文本先做繁转简（OpenCC）。起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
+起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
 
 ### 官方二次开发路径（调研结论）
 

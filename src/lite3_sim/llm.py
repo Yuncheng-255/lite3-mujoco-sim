@@ -13,7 +13,7 @@ import os
 from typing import Any
 
 from lite3_sim.policy import VelocityCommand
-from lite3_sim.voice import Action, MotionCommand, _to_simplified
+from lite3_sim.voice import Action, MotionCommand
 
 DEFAULT_BASE_URL = "https://modelgateway.zju.edu.cn/v1"
 DEFAULT_MODEL = "deepseek-v4-flash-780k-local"
@@ -82,7 +82,7 @@ class LLMCommandParser:
 
         动作无法映射或输出非法 JSON 时返回 None。
         """
-        user_content = _to_simplified(text)
+        user_content = text
         if state:
             user_content = f"当前状态：{state}\n用户说：{user_content}"
         response = self._client.chat.completions.create(

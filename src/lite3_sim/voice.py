@@ -1,31 +1,23 @@
-"""语音指令识别：faster-whisper 本地转写 + 关键词映射为运动指令。
+"""语音指令识别：SenseVoice 本地转写 + 关键词映射为运动指令。
 
+ASR 采用阿里 SenseVoiceSmall（sherpa-onnx 推理，int8 量化约 228MB），
+原生输出简体中文，首次使用自动下载模型到 ~/.cache/lite3-sim/。
 依赖为可选安装：``uv sync --extra voice``。
 """
 
+import tarfile
 import threading
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
 from lite3_sim.policy import VelocityCommand
 from lite3_sim.robot import PDGains, Lite3Sim
-
-_T2S = None
-
-
-def _to_simplified(text: str) -> str:
-    """繁体转简体：Whisper 中文输出常混入繁体字。"""
-    global _T2S
-    if _T2S is None:
-        from opencc import OpenCC
-
-        _T2S = OpenCC("t2s")
-    return _T2S.convert(text)
 
 # 官方部署代码中的趴下关节角（lite3 URDF_INIT）
 LIE_POSE: NDArray[np.float64] = np.array([0.0, -1.35453, 2.54948] * 4)
@@ -65,7 +57,6 @@ _KEYWORDS: tuple[tuple[tuple[str, ...], MotionCommand], ...] = (
 
 def parse_command(text: str) -> MotionCommand | None:
     """从转写文本提取运动指令；无匹配返回 None。"""
-    text = _to_simplified(text)
     for keywords, command in _KEYWORDS:
         if any(word in text for word in keywords):
             return command
@@ -73,15 +64,46 @@ def parse_command(text: str) -> MotionCommand | None:
 
 
 _SAMPLE_RATE = 16000
+_MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"
+_MODEL_DIR_NAME = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
+_PUNCTUATION = "，。！？、,.!? "
 
 
-class WhisperListener:
-    """后台线程循环录音转写，识别文本经回调分发。"""
+def _ensure_model() -> Path:
+    """下载并解压 SenseVoice 模型到缓存目录，返回模型目录。"""
+    model_dir = Path.home() / ".cache" / "lite3-sim" / _MODEL_DIR_NAME
+    if (model_dir / "model.int8.onnx").exists():
+        return model_dir
+    model_dir.parent.mkdir(parents=True, exist_ok=True)
+    archive = model_dir.parent / "sense-voice.tar.bz2"
+    print(f"首次使用，下载 SenseVoice 模型（约 236MB）→ {model_dir.parent}")
+    urllib.request.urlretrieve(_MODEL_URL, archive)
+    with tarfile.open(archive) as tar:
+        tar.extractall(model_dir.parent, filter="data")
+    archive.unlink()
+    return model_dir
+
+
+def transcribe_file(recognizer: object, wav_path: str) -> str:
+    """转写本地 wav 文件（供离线测试与脚本使用）。"""
+    import wave
+
+    with wave.open(wav_path, "rb") as wav:
+        assert wav.getframerate() == _SAMPLE_RATE, f"需要 16kHz 单声道 wav: {wav_path}"
+        frames = wav.readframes(wav.getnframes())
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    stream = recognizer.create_stream()
+    stream.accept_waveform(_SAMPLE_RATE, samples)
+    recognizer.decode_stream(stream)
+    return stream.result.text.strip().strip(_PUNCTUATION)
+
+
+class SenseVoiceListener:
+    """后台线程循环录音，SenseVoice 转写后经回调分发。"""
 
     def __init__(
         self,
         on_text: Callable[[str], None],
-        model_size: Literal["tiny", "base", "small"] = "base",
         record_seconds: float = 3.0,
     ) -> None:
         self._on_text = on_text
@@ -89,9 +111,14 @@ class WhisperListener:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         # 延迟加载，避免未安装 voice 依赖时影响包导入
-        from faster_whisper import WhisperModel
+        import sherpa_onnx
 
-        self._model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        model_dir = _ensure_model()
+        self._recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
+            model=str(model_dir / "model.int8.onnx"),
+            tokens=str(model_dir / "tokens.txt"),
+            use_itn=True,
+        )
 
     def _record_chunk(self) -> NDArray[np.float32]:
         import sounddevice as sd
@@ -110,8 +137,10 @@ class WhisperListener:
             audio = self._record_chunk()
             if self._stop.is_set():
                 break
-            segments, _ = self._model.transcribe(audio, language="zh", beam_size=1)
-            text = "".join(segment.text for segment in segments).strip()
+            stream = self._recognizer.create_stream()
+            stream.accept_waveform(_SAMPLE_RATE, audio)
+            self._recognizer.decode_stream(stream)
+            text = stream.result.text.strip().strip(_PUNCTUATION)
             if text:
                 self._on_text(text)
 
@@ -175,7 +204,8 @@ __all__ = [
     "LIE_POSE",
     "MotionCommand",
     "PoseTransition",
+    "SenseVoiceListener",
     "TextListener",
-    "WhisperListener",
     "parse_command",
+    "transcribe_file",
 ]

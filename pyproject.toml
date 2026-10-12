@@ -9,16 +9,18 @@ dependencies = [
     "mujoco>=3.2",
     "numpy>=1.26",
     "onnxruntime>=1.18",
-    "opencc-python-reimplemented>=0.1",
     "Pillow>=10",
 ]
 
 [project.optional-dependencies]
 voice = [
-    "av>=11,<14",
-    "faster-whisper>=1",
-    "huggingface-hub>=0.24",
+    "sherpa-onnx>=1.12",
+    # 镜像元数据缺失 sherpa-onnx 对 core（原生动态库）的依赖声明，需显式锁定
+    "sherpa-onnx-core==1.13.8",
     "sounddevice>=0.5",
+]
+semantic = [
+    "huggingface-hub>=0.24",
     "tokenizers>=0.19",
 ]
 llm = [

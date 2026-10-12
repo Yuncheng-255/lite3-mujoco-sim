@@ -11,7 +11,7 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 
 from lite3_sim.policy import VelocityCommand
-from lite3_sim.voice import Action, MotionCommand, _to_simplified
+from lite3_sim.voice import Action, MotionCommand
 
 MODEL_REPO = "Xenova/bge-small-zh-v1.5"
 _MODEL_FILE = "onnx/model_quantized.onnx"
@@ -77,7 +77,7 @@ class SemanticCommandParser:
 
     def parse(self, text: str) -> MotionCommand | None:
         """返回语义最近的指令；最高相似度低于阈值返回 None。"""
-        (query,) = self._embed([_to_simplified(text)])
+        (query,) = self._embed([text])
         scores = self._prototype_embeddings @ query
         best = int(np.argmax(scores))
         if float(scores[best]) < self._threshold:
@@ -86,7 +86,7 @@ class SemanticCommandParser:
 
     def score(self, text: str) -> float:
         """调试用：返回当前文本的最高相似度。"""
-        (query,) = self._embed([_to_simplified(text)])
+        (query,) = self._embed([text])
         return float(np.max(self._prototype_embeddings @ query))
 
 
