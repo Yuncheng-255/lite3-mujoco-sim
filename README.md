@@ -64,10 +64,22 @@ print(sim.base_height())              # 站立稳定后的躯干高度
 rgb = sim.render(640, 480)            # 离屏渲染 [H, W, 3] uint8
 ```
 
+### 语音遥控（可选）
+
+```bash
+uv sync --extra voice          # 安装 faster-whisper + sounddevice
+uv run python scripts/voice_control.py            # 语音 + 键盘双通道
+uv run python scripts/voice_control.py --no-voice # 仅键盘输入调试
+```
+
+支持指令：**前进 / 后退 / 左转 / 右转 / 停下 / 起立 / 趴下**。
+本地 faster-whisper 中文识别（默认 base 模型）→ 关键词映射为运动指令；识别文本先做繁转简（OpenCC）。起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
+
 ### 运行测试
 
 ```bash
-uv run pytest
+uv run pytest                  # 基础测试
+uv run pytest --extra voice    # 语音相关测试依赖见 [project.optional-dependencies]
 ```
 
 ## 模型与关节约定
