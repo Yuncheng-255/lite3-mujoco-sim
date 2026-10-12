@@ -69,11 +69,17 @@ rgb = sim.render(640, 480)            # 离屏渲染 [H, W, 3] uint8
 ```bash
 uv sync --extra voice          # 安装 faster-whisper + sounddevice
 uv run python scripts/voice_control.py            # 语音 + 键盘双通道
+uv run python scripts/voice_control.py --semantic # 语义模式：识别自由表述
 uv run python scripts/voice_control.py --no-voice # 仅键盘输入调试
 ```
 
 支持指令：**前进 / 后退 / 左转 / 右转 / 停下 / 起立 / 趴下**。
-本地 faster-whisper 中文识别（默认 base 模型）→ 关键词映射为运动指令；识别文本先做繁转简（OpenCC）。起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
+本地 faster-whisper 中文识别（默认 base 模型）；指令解析有两种模式：
+
+- **关键词模式**（默认）：亚毫秒匹配固定指令词
+- **语义模式**（`--semantic`）：bge-small-zh 句向量（ONNX 量化，~24MB，首次自动下载）与指令例句算余弦相似度，阈值 0.6；"宝贝往前走两步"这类自由表述也能识别，无关文本会被拒绝
+
+识别文本先做繁转简（OpenCC）。起立/趴下通过 `PoseTransition` 姿态插值完成（行走策略的 PD 增益不足以从趴下起立）。
 
 ### 运行测试
 

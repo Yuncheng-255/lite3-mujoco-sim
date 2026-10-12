@@ -34,7 +34,19 @@ def main() -> None:
         "--no-voice", action="store_true", help="只用键盘输入，不开麦克风"
     )
     parser.add_argument("--model", default="base", choices=["tiny", "base", "small"])
+    parser.add_argument(
+        "--semantic",
+        action="store_true",
+        help="用语义嵌入匹配替代关键词匹配（识别自由表述）",
+    )
     args = parser.parse_args()
+
+    if args.semantic:
+        from lite3_sim.semantic import SemanticCommandParser
+
+        parse = SemanticCommandParser().parse
+    else:
+        parse = parse_command
 
     sim = Lite3Sim()
     policy = OnnxPolicyController()
@@ -44,7 +56,7 @@ def main() -> None:
     state = {"command": MotionCommand(Action.STAND), "transition": None}
 
     def on_text(text: str) -> None:
-        command = parse_command(text)
+        command = parse(text)
         if command is None:
             print(f"[未识别] {text}（{_HINT}）")
             return

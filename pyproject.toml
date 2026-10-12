@@ -17,7 +17,9 @@ dependencies = [
 voice = [
     "av>=11,<14",
     "faster-whisper>=1",
+    "huggingface-hub>=0.24",
     "sounddevice>=0.5",
+    "tokenizers>=0.19",
 ]
 
 [dependency-groups]
