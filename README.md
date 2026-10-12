@@ -2,6 +2,10 @@
 
 基于云深处（DeepRobotics）官方 MJCF 模型的 **Lite3 四足机器狗 MuJoCo 仿真**最小可复用工程。
 
+![语音遥控演示](assets/voice_demo.gif)
+
+*语音 → SenseVoice 转写 → 指令解析（关键词/语义/大模型） → 执行。复现：`uv run --extra voice python scripts/render_voice_demo.py`*
+
 - 纯 MuJoCo + Python，无 ROS 依赖
 - 关节力矩接口 + 内置 PD 位置控制器（站立）
 - 支持交互式查看器、无头离屏渲染、程序化步进
